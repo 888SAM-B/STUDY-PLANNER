@@ -1,7 +1,34 @@
 const { GoogleGenerativeAI, SchemaType } = require('@google/generative-ai');
 
+function _maskKey(k) {
+  if (!k) return null;
+  if (k.length <= 10) return '***';
+  return `${k.slice(0, 4)}...${k.slice(-4)}`;
+}
+
+console.log('GEMINI_API_KEY present:', !!process.env.GEMINI_API_KEY, 'masked:', _maskKey(process.env.GEMINI_API_KEY));
+
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY, { apiVersion: 'v1' });
+
+async function retryOn429(fn, retries = 4, baseDelay = 1000) {
+  let attempt = 0;
+  let delay = baseDelay;
+  while (true) {
+    try {
+      return await fn();
+    } catch (err) {
+      const status = err?.response?.status || err?.status;
+      if (status === 429 && attempt < retries) {
+        await new Promise(r => setTimeout(r, delay));
+        attempt += 1;
+        delay *= 2;
+        continue;
+      }
+      throw err;
+    }
+  }
+}
 
 /**
  * Generate study roadmap using Gemini AI
@@ -27,7 +54,8 @@ async function generateRoadmap(syllabusText, referenceMaterialsText, studyParams
     - Duration: ${totalWeeks} weeks
     - Study Intensity: ${studyTimePerDay} hours per day, ${studyDaysPerWeek} days per week.
     
-    The plan should be professional and comprehensive. For each week, provide a focused goal, several detailed topics, and a concise cheat sheet.
+    The plan should be professional and comprehensive. For each week, provide a focused goal, a day-by-day study schedule (Day 1 to ${studyDaysPerWeek}), several detailed topics, and a concise cheat sheet.
+    IMPORTANT: The dailyPlan format MUST be strictly "Day 1", "Day 2", etc., up to "Day ${studyDaysPerWeek}".
   `;
 
   const schema = {
@@ -52,9 +80,23 @@ async function generateRoadmap(syllabusText, referenceMaterialsText, studyParams
                 required: ["title", "description"]
               }
             },
+            dailyPlan: {
+              type: SchemaType.ARRAY,
+              items: {
+                type: SchemaType.OBJECT,
+                properties: {
+                  day: { type: SchemaType.STRING, description: "Format: 'Day X' e.g. 'Day 1'" },
+                  topics: {
+                    type: SchemaType.ARRAY,
+                    items: { type: SchemaType.STRING }
+                  }
+                },
+                required: ["day", "topics"]
+              }
+            },
             cheatSheet: { type: SchemaType.STRING }
           },
-          required: ["weekNumber", "weekTitle", "topics", "cheatSheet"]
+          required: ["weekNumber", "weekTitle", "topics", "dailyPlan", "cheatSheet"]
         }
       }
     },
@@ -63,14 +105,14 @@ async function generateRoadmap(syllabusText, referenceMaterialsText, studyParams
 
   try {
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash-lite',
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: schema
       }
     });
 
-    const result = await model.generateContent(prompt);
+    const result = await retryOn429(() => model.generateContent(prompt));
     const response = await result.response;
     const text = response.text();
     const roadmapData = JSON.parse(text);
@@ -78,6 +120,7 @@ async function generateRoadmap(syllabusText, referenceMaterialsText, studyParams
     // Transform rich schema back to flat DB structure
     return roadmapData.weeklyPlan.map(week => ({
       weekNumber: week.weekNumber,
+      dailyPlan: week.dailyPlan,
       topics: week.topics.map(t => `${t.title}: ${t.description}`),
       studyMaterials: week.topics
         .filter(t => t.referenceLink)
@@ -86,7 +129,10 @@ async function generateRoadmap(syllabusText, referenceMaterialsText, studyParams
     }));
 
   } catch (error) {
-    console.error('Error generating roadmap:', error);
+    console.error('Error generating roadmap:', {
+      status: error?.response?.status || error?.status,
+      body: error?.response?.data || error?.message || error
+    });
     throw error;
   }
 }
@@ -130,8 +176,8 @@ Return ONLY the JSON object, no additional text.
 `;
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-    const result = await model.generateContent(prompt);
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
+    const result = await retryOn429(() => model.generateContent(prompt));
     const response = await result.response;
     const text = response.text();
 
@@ -142,7 +188,10 @@ Return ONLY the JSON object, no additional text.
 
     return JSON.parse(jsonMatch[0]);
   } catch (error) {
-    console.error('Error generating assessment:', error);
+    console.error('Error generating assessment:', {
+      status: error?.response?.status || error?.status,
+      body: error?.response?.data || error?.message || error
+    });
     throw error;
   }
 }
@@ -187,8 +236,8 @@ Return ONLY the JSON object, no additional text.
 `;
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-    const result = await model.generateContent(prompt);
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
+    const result = await retryOn429(() => model.generateContent(prompt));
     const response = await result.response;
     const text = response.text();
 
@@ -199,7 +248,10 @@ Return ONLY the JSON object, no additional text.
 
     return JSON.parse(jsonMatch[0]);
   } catch (error) {
-    console.error('Error generating master assessment:', error);
+    console.error('Error generating master assessment:', {
+      status: error?.response?.status || error?.status,
+      body: error?.response?.data || error?.message || error
+    });
     throw error;
   }
 }

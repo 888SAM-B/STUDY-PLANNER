@@ -70,7 +70,7 @@ router.post('/create', authMiddleware, upload.fields([
                 topics: week.topics,
                 studyMaterials: week.studyMaterials,
                 cheatSheet: week.cheatSheet,
-                status: 'not-started'
+                status: week.weekNumber === 1 ? 'ongoing' : 'not-started'
             }))
         };
 
@@ -100,6 +100,7 @@ router.post('/create', authMiddleware, upload.fields([
         if (error.status === 429 || error.message?.includes('quota') || error.message?.includes('429')) {
             return res.status(429).json({
                 success: false,
+
                 message: 'AI service quota exceeded. Please try again later or upgrade your plan.',
                 error: 'QUOTA_EXCEEDED',
                 details: 'The free tier API quota has been exhausted. Please wait for the quota to reset or consider upgrading to a paid plan.'
@@ -148,7 +149,28 @@ router.put('/:id/week/:weekNumber/status', authMiddleware, async (req, res) => {
             return res.status(404).json({ success: false, message: 'Week not found' });
         }
 
-        roadmap.weeklyContent[weekIndex].status = status;
+        // Logic for sequential progress
+        if (status === 'completed') {
+            // mark current as completed
+            roadmap.weeklyContent[weekIndex].status = 'completed';
+
+            // automatically unlock next week if it exists
+            if (weekIndex + 1 < roadmap.weeklyContent.length) {
+                roadmap.weeklyContent[weekIndex + 1].status = 'ongoing';
+            }
+        } else if (status === 'ongoing') {
+            // Can only mark as ongoing if previous week is completed (or it's the first week)
+            if (weekIndex > 0 && roadmap.weeklyContent[weekIndex - 1].status !== 'completed') {
+                return res.status(400).json({
+                    success: false,
+                    message: `You must complete Week ${weekIndex} before starting Week ${weekIndex + 1}`
+                });
+            }
+            roadmap.weeklyContent[weekIndex].status = 'ongoing';
+        } else {
+            // fallback for other statuses (e.g. reverting to not-started)
+            roadmap.weeklyContent[weekIndex].status = status;
+        }
 
         // Calculate overall progress
         const completedWeeks = roadmap.weeklyContent.filter(w => w.status === 'completed').length;
@@ -156,7 +178,7 @@ router.put('/:id/week/:weekNumber/status', authMiddleware, async (req, res) => {
 
         await roadmap.save();
 
-        res.json({ success: true, message: 'Status updated', progress: roadmap.overallProgress });
+        res.json({ success: true, message: 'Status updated', progress: roadmap.overallProgress, roadmap });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Server Error' });
     }

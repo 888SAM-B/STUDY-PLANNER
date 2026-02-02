@@ -8,6 +8,10 @@ const weeklyContentSchema = new mongoose.Schema({
     topics: [{
         type: String
     }],
+    dailyPlan: [{
+        day: String,
+        topics: [String]
+    }],
     studyMaterials: [{
         type: String
     }],
