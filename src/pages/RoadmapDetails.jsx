@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../utils/api';
-import { ChevronDown, ChevronUp, CheckCircle, Circle, Play, Award, FileText, ArrowLeft, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, CheckCircle, Circle, Play, Award, FileText, ArrowLeft, Loader2, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
 
 const RoadmapDetails = () => {
     const { id } = useParams();
@@ -72,7 +73,7 @@ const RoadmapDetails = () => {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: week.weekNumber * 0.05 }}
                         className={`glass-panel rounded-xl overflow-hidden border transition-all ${week.status === 'completed' ? 'border-green-500/30 bg-green-900/10' :
-                                week.weekNumber === expandedWeek ? 'border-indigo-500/50' : 'border-gray-700'
+                            week.weekNumber === expandedWeek ? 'border-indigo-500/50' : 'border-gray-700'
                             }`}
                     >
                         <div
@@ -107,41 +108,92 @@ const RoadmapDetails = () => {
 
                                         {/* Status Control */}
                                         <div className="flex gap-2 my-6">
-                                            {['not-started', 'ongoing', 'completed'].map((status) => (
-                                                <button
-                                                    key={status}
-                                                    onClick={() => updateStatus(week.weekNumber, status)}
-                                                    className={`px-4 py-2 rounded-lg text-sm capitalize transition-colors ${week.status === status
-                                                            ? 'bg-indigo-600 text-white'
-                                                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                                                        }`}
-                                                >
-                                                    {status.replace('-', ' ')}
-                                                </button>
-                                            ))}
+                                            {/* Logic for Status Buttons */}
+                                            {(() => {
+                                                const isFirstWeek = week.weekNumber === 1;
+                                                const prevWeek = roadmap.weeklyContent.find(w => w.weekNumber === week.weekNumber - 1);
+                                                const isLocked = !isFirstWeek && (!prevWeek || prevWeek.status !== 'completed');
+
+                                                if (week.status === 'completed') {
+                                                    return (
+                                                        <div className="flex items-center gap-2 text-green-400 font-semibold px-4 py-2 bg-green-900/20 rounded-lg border border-green-500/30">
+                                                            <CheckCircle size={20} /> Week Completed
+                                                        </div>
+                                                    );
+                                                }
+
+                                                if (week.status === 'ongoing') {
+                                                    return (
+                                                        <button
+                                                            onClick={() => updateStatus(week.weekNumber, 'completed')}
+                                                            className="btn-primary bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg flex items-center gap-2"
+                                                        >
+                                                            <CheckCircle size={18} /> Mark as Completed
+                                                        </button>
+                                                    );
+                                                }
+
+                                                if (isLocked) {
+                                                    return (
+                                                        <div className="flex items-center gap-2 text-gray-500 px-4 py-2 bg-gray-800/50 rounded-lg border border-gray-700 border-dashed cursor-not-allowed">
+                                                            <Award size={18} /> Locked - Complete previous week first
+                                                        </div>
+                                                    );
+                                                }
+
+                                                // If not started and unlocked
+                                                return (
+                                                    <button
+                                                        onClick={() => updateStatus(week.weekNumber, 'ongoing')}
+                                                        className="px-6 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white flex items-center gap-2 transition-all"
+                                                    >
+                                                        <Play size={18} /> Start Week
+                                                    </button>
+                                                );
+                                            })()}
                                         </div>
 
                                         <div className="grid md:grid-cols-2 gap-8">
                                             <div>
                                                 <h4 className="text-indigo-400 font-medium mb-3 flex items-center gap-2">
-                                                    <Circle size={16} fill="currentColor" /> Topics to Study
+                                                    <Circle size={16} fill="currentColor" /> Daily Schedule
                                                 </h4>
-                                                <ul className="space-y-2">
-                                                    {week.topics.map((topic, i) => (
-                                                        <li key={i} className="text-gray-300 flex items-start gap-2">
-                                                            <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-gray-500 flex-shrink-0"></span>
-                                                            {topic}
-                                                        </li>
-                                                    ))}
-                                                </ul>
+
+                                                {week.dailyPlan && week.dailyPlan.length > 0 ? (
+                                                    <div className="space-y-3">
+                                                        {week.dailyPlan.map((day, idx) => (
+                                                            <div key={idx} className="bg-gray-800/30 rounded-lg p-3 border border-gray-700/50">
+                                                                <h5 className="text-indigo-300 text-sm font-semibold mb-2 flex items-center gap-2">
+                                                                    <Calendar size={14} /> {day.day}
+                                                                </h5>
+                                                                <ul className="space-y-1 ml-1">
+                                                                    {day.topics.map((topic, tIdx) => (
+                                                                        <li key={tIdx} className="text-gray-400 text-sm flex items-start gap-2 pl-2 border-l-2 border-gray-700">
+                                                                            {topic}
+                                                                        </li>
+                                                                    ))}
+                                                                </ul>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <ul className="space-y-2">
+                                                        {week.topics.map((topic, i) => (
+                                                            <li key={i} className="text-gray-300 flex items-start gap-2">
+                                                                <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-gray-500 flex-shrink-0"></span>
+                                                                {topic}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                )}
                                             </div>
 
                                             <div>
                                                 <h4 className="text-pink-400 font-medium mb-3 flex items-center gap-2">
                                                     <FileText size={16} /> Cheat Sheet
                                                 </h4>
-                                                <div className="bg-gray-900/50 p-4 rounded-lg text-sm text-gray-300 leading-relaxed border border-gray-700">
-                                                    {week.cheatSheet}
+                                                <div className="bg-gray-900/50 p-4 rounded-lg text-sm text-gray-300 leading-relaxed border border-gray-700 prose prose-sm prose-invert max-w-none">
+                                                    <ReactMarkdown>{week.cheatSheet}</ReactMarkdown>
                                                 </div>
                                             </div>
                                         </div>
