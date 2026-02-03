@@ -68,7 +68,9 @@ router.post('/create', authMiddleware, upload.fields([
             weeklyContent: weeklyPlan.map(week => ({
                 weekNumber: week.weekNumber,
                 topics: week.topics,
+                dailyPlan: week.dailyPlan,
                 studyMaterials: week.studyMaterials,
+                resourceLinks: week.resourceLinks,
                 cheatSheet: week.cheatSheet,
                 status: week.weekNumber === 1 ? 'ongoing' : 'not-started'
             }))
@@ -96,14 +98,23 @@ router.post('/create', authMiddleware, upload.fields([
     } catch (error) {
         console.error('Roadmap Creation Error:', error);
 
-        // Handle quota exceeded errors specifically
+        // Handle quota exceeded errors
         if (error.status === 429 || error.message?.includes('quota') || error.message?.includes('429')) {
             return res.status(429).json({
                 success: false,
-
                 message: 'AI service quota exceeded. Please try again later or upgrade your plan.',
                 error: 'QUOTA_EXCEEDED',
                 details: 'The free tier API quota has been exhausted. Please wait for the quota to reset or consider upgrading to a paid plan.'
+            });
+        }
+
+        // Handle service overload errors
+        if (error.status === 503 || error.message?.includes('overloaded') || error.message?.includes('503')) {
+            return res.status(503).json({
+                success: false,
+                message: 'AI service is currently overloaded. Please try again in a few moments.',
+                error: 'SERVICE_OVERLOADED',
+                details: 'The AI model is experiencing high traffic. Please wait a moment and try again.'
             });
         }
 

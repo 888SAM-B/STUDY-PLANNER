@@ -15,6 +15,11 @@ const weeklyContentSchema = new mongoose.Schema({
     studyMaterials: [{
         type: String
     }],
+    resourceLinks: [{
+        title: String,
+        url: String,
+        description: String
+    }],
     cheatSheet: {
         type: String,
         default: ''

@@ -11,7 +11,7 @@ console.log('GEMINI_API_KEY present:', !!process.env.GEMINI_API_KEY, 'masked:', 
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY, { apiVersion: 'v1' });
 
-async function retryOn429(fn, retries = 4, baseDelay = 1000) {
+async function retryOnError(fn, retries = 5, baseDelay = 2000) {
   let attempt = 0;
   let delay = baseDelay;
   while (true) {
@@ -19,10 +19,12 @@ async function retryOn429(fn, retries = 4, baseDelay = 1000) {
       return await fn();
     } catch (err) {
       const status = err?.response?.status || err?.status;
-      if (status === 429 && attempt < retries) {
+      // Retry on rate limit (429) or service overload (503)
+      if ((status === 429 || status === 503) && attempt < retries) {
+        console.log(`Attempt ${attempt + 1}/${retries} failed with status ${status}. Retrying in ${delay}ms...`);
         await new Promise(r => setTimeout(r, delay));
         attempt += 1;
-        delay *= 2;
+        delay *= 2; // Exponential backoff
         continue;
       }
       throw err;
@@ -46,7 +48,7 @@ async function generateRoadmap(syllabusText, referenceMaterialsText, studyParams
     Create a detailed, high-quality study roadmap for the provided syllabus.
     
     Syllabus Context:
-    'Python'
+    ${truncatedSyllabus}
     
     ${referenceMaterialsText ? `Reference Materials:\n${referenceMaterialsText}\n` : ''}
     
@@ -54,7 +56,21 @@ async function generateRoadmap(syllabusText, referenceMaterialsText, studyParams
     - Duration: ${totalWeeks} weeks
     - Study Intensity: ${studyTimePerDay} hours per day, ${studyDaysPerWeek} days per week.
     
-    The plan should be professional and comprehensive. For each week, provide a focused goal, a day-by-day study schedule (Day 1 to ${studyDaysPerWeek}), several detailed topics, and a concise cheat sheet.
+    The plan should be professional and comprehensive. For each week, provide:
+    1. A focused goal and week title
+    2. A day-by-day study schedule (Day 1 to ${studyDaysPerWeek})
+    3. Several detailed topics with descriptions
+    4. A concise cheat sheet
+    5. IMPORTANT: Useful learning resource links from popular educational websites like:
+       - GeeksforGeeks (geeksforgeeks.org)
+       - W3Schools (w3schools.com)
+       - MDN Web Docs (developer.mozilla.org)
+       - FreeCodeCamp (freecodecamp.org)
+       - YouTube tutorials
+       - Official documentation sites
+       - Any other relevant high-quality learning resources
+    
+    For resourceLinks, provide 3-5 actual, working URLs that are most relevant to the week's topics.
     IMPORTANT: The dailyPlan format MUST be strictly "Day 1", "Day 2", etc., up to "Day ${studyDaysPerWeek}".
   `;
 
@@ -94,9 +110,21 @@ async function generateRoadmap(syllabusText, referenceMaterialsText, studyParams
                 required: ["day", "topics"]
               }
             },
+            resourceLinks: {
+              type: SchemaType.ARRAY,
+              items: {
+                type: SchemaType.OBJECT,
+                properties: {
+                  title: { type: SchemaType.STRING, description: "Name of the resource" },
+                  url: { type: SchemaType.STRING, description: "Full URL to the resource" },
+                  description: { type: SchemaType.STRING, description: "Brief description of what this resource offers" }
+                },
+                required: ["title", "url"]
+              }
+            },
             cheatSheet: { type: SchemaType.STRING }
           },
-          required: ["weekNumber", "weekTitle", "topics", "dailyPlan", "cheatSheet"]
+          required: ["weekNumber", "weekTitle", "topics", "dailyPlan", "resourceLinks", "cheatSheet"]
         }
       }
     },
@@ -112,7 +140,7 @@ async function generateRoadmap(syllabusText, referenceMaterialsText, studyParams
       }
     });
 
-    const result = await retryOn429(() => model.generateContent(prompt));
+    const result = await retryOnError(() => model.generateContent(prompt));
     const response = await result.response;
     const text = response.text();
     const roadmapData = JSON.parse(text);
@@ -125,7 +153,10 @@ async function generateRoadmap(syllabusText, referenceMaterialsText, studyParams
       studyMaterials: week.topics
         .filter(t => t.referenceLink)
         .map(t => `${t.title} - ${t.referenceLink}`),
-      cheatSheet: `**${week.weekTitle}**\n\n${week.cheatSheet}`
+      resourceLinks: week.resourceLinks || [],
+      cheatSheet: `**${week.weekTitle}**
+
+${week.cheatSheet}`
     }));
 
   } catch (error) {
@@ -177,7 +208,7 @@ Return ONLY the JSON object, no additional text.
 
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
-    const result = await retryOn429(() => model.generateContent(prompt));
+    const result = await retryOnError(() => model.generateContent(prompt));
     const response = await result.response;
     const text = response.text();
 
@@ -237,7 +268,7 @@ Return ONLY the JSON object, no additional text.
 
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
-    const result = await retryOn429(() => model.generateContent(prompt));
+    const result = await retryOnError(() => model.generateContent(prompt));
     const response = await result.response;
     const text = response.text();
 
