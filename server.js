@@ -33,7 +33,7 @@ mongoose.connect(process.env.MONGO_URI, {
 });
 
 app.get("/", (req, res) => {
-    res.send("Study Planner API is Running");
+    res.send("DYC Study Planner API is Running");
 });
 
 // Error Handling Middleware

@@ -1,7 +1,7 @@
 {
-  "name": "study-planner-backend",
+  "name": "dyc-study-planner-backend",
   "version": "1.0.0",
-  "description": "Backend for AI-powered Study Planner",
+  "description": "Backend for DYC - AI-powered Study Planner",
   "main": "server.js",
   "type": "commonjs",
   "scripts": {
