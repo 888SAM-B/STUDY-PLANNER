@@ -14,7 +14,7 @@ const Landing = () => {
             {/* Navbar */}
             <nav className="flex justify-between items-center p-6 container mx-auto">
                 <div className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-pink-500">
-                    Academix
+                    DYC
                 </div>
                 <div className="flex gap-4">
                     <Link to="/login" className="btn-secondary">Login</Link>
@@ -30,9 +30,9 @@ const Landing = () => {
                     transition={{ duration: 0.8 }}
                 >
                     <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
-                        Your Personal AI <br />
+                        DYC - Decode Your Course <br />
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-pink-500">
-                            Study Architect
+                            AI Study Planner
                         </span>
                     </h1>
                     <p className="text-xl text-gray-400 mb-10 max-w-2xl mx-auto">
